@@ -39,12 +39,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-TODO.txt
-main.py
-notes.txt
-sb_util.py
-venv/
-vram_check.png
-vram_check_2.png
-__pycache__/
