@@ -8,9 +8,9 @@ import logging
 from dotenv import load_dotenv
 import os
 import asyncpg
-from .routers import admin, users, chats, texts
-from .utils.funcs import ollama_bot
-from .utils.dependencies import verify_token, get_current_active_user
+from routers import admin, users, chats, texts
+from utils.funcs import ollama_bot
+from utils.dependencies import verify_token, get_current_active_user
 from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()

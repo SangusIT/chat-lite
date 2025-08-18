@@ -4,11 +4,11 @@ from datetime import timedelta
 from typing import Annotated
 from pydantic import SecretStr
 from fastapi.responses import HTMLResponse
-from ..utils.dependencies import verify_key, get_current_active_user
-from ..models.users import User, UserPublic, UserDB
-from ..models.tokens import Token
-from ..utils.psql import exec, get_user
-from ..utils.funcs import authenticate_user, create_access_token
+from utils.dependencies import verify_key, get_current_active_user
+from models.users import User, UserPublic, UserDB
+from models.tokens import Token
+from utils.psql import exec, get_user
+from utils.funcs import authenticate_user, create_access_token
 from dotenv import load_dotenv
 import os
 

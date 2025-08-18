@@ -3,12 +3,12 @@ from fastapi import status, HTTPException
 import os
 import jwt
 from dotenv import load_dotenv
-from ..models.users import UserPrivate, UserPublic
-from ..utils.psql import get_user
+from models.users import UserPrivate, UserPublic
+from utils.psql import get_user
 from passlib.context import CryptContext
 import markdown
 import boto3
-from ..models.users import User
+from models.users import User
 
 
 load_dotenv()

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request, WebSocket, Depends
 from typing import Annotated
 from fastapi.responses import HTMLResponse
-from ..utils.funcs import ollama_bot
-from ..utils.dependencies import get_current_active_user
+from utils.funcs import ollama_bot
+from utils.dependencies import get_current_active_user
 
 router = APIRouter()
 

@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Response, Depends, status, Request, HTTPException, Query, BackgroundTasks
 from typing import Annotated
-from ..utils.dependencies import verify_token
-from ..utils.psql import create_db, create_table_users, create_table_chats, create_table_texts, table_schema, exec, drop_table, exec_many
-from ..utils.funcs import process_table_create, send_reg
+from utils.dependencies import verify_token
+from utils.psql import create_db, create_table_users, create_table_chats, create_table_texts, table_schema, exec, drop_table, exec_many
+from utils.funcs import process_table_create, send_reg
 import uuid
-from ..models.tables import Table, TableDelete
-from ..models.users import User, UserAdd, UserDB, UserPublic
+from models.tables import Table, TableDelete
+from models.users import User, UserAdd, UserDB, UserPublic
     
 router = APIRouter()
 

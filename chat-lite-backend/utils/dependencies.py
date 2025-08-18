@@ -5,10 +5,10 @@ from jwt.exceptions import InvalidTokenError
 import jwt
 import os
 from dotenv import load_dotenv
-from ..models.users import User, UserPrivate, UserRegister
-from ..utils.funcs import get_password_hash
-from ..models.tokens import TokenData
-from ..utils.psql import get_user, check_key
+from models.users import User, UserPrivate, UserRegister
+from utils.funcs import get_password_hash
+from models.tokens import TokenData
+from utils.psql import get_user, check_key
 from fastapi import Request
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/token")
