@@ -1,4 +1,5 @@
-from fastapi import FastAPI, WebSocket, Depends, status
+from fastapi import FastAPI, WebSocket, Depends, status, Request, WebSocketDisconnect
+from websockets.exceptions import ConnectionClosed
 from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 from openai import AsyncOpenAI
@@ -7,8 +8,10 @@ import logging
 from dotenv import load_dotenv
 import os
 import asyncpg
-from .routers import admin, users, chats, texts, tokens
-from .utils.dependencies import get_current_active_user, verify_key
+from .routers import admin, users, chats, texts
+from .utils.funcs import ollama_bot
+from .utils.dependencies import verify_token, get_current_active_user
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -16,6 +19,7 @@ MONGO_USER: str = os.environ.get("MONGO_USER")
 MONGO_PASSWORD: str = os.environ.get("MONGO_PASSWORD")
 MONGO_HOST: str = os.environ.get("MONGO_HOST")
 MONGO_PORT: int = int(os.environ.get("MONGO_PORT"))
+OLLAMA_URL: str = os.environ.get("OLLAMA_URL")
 PSQL_USER: str = os.environ.get("PSQL_USER")
 PSQL_PASSWORD: str = os.environ.get("PSQL_PASSWORD")
 PSQL_HOST: str = os.environ.get("PSQL_HOST")
@@ -24,7 +28,7 @@ PSQL_DB: str = os.environ.get("PSQL_DB")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ollama_client = AsyncOpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+    ollama_client = AsyncOpenAI(base_url=OLLAMA_URL, api_key="ollama")
     mongo_conn = AsyncMongoClient(host=MONGO_HOST, port=MONGO_PORT, username=MONGO_USER, password=MONGO_PASSWORD)
     psql_conn = await asyncpg.connect(user=PSQL_USER, password=PSQL_PASSWORD, database=PSQL_DB, host=PSQL_HOST)
     logger = logging.getLogger('uvicorn.error')
@@ -44,9 +48,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# app.include_router(tokens.router, dependencies=[Depends(verify_key)])
-app.include_router(admin.router, prefix='/admin', tags=['admin'])
+app.include_router(admin.router, prefix='/admin', tags=['admin'], dependencies=[Depends(verify_token)])
 app.include_router(users.router, prefix='/users', tags=['users'])
+app.include_router(chats.router, prefix='/chats', tags=['chats'], dependencies=[Depends(get_current_active_user)])
+app.include_router(texts.router, prefix='/texts', tags=['texts'], dependencies=[Depends(get_current_active_user)])
 
-# app.include_router(chats.router, dependencies=[Depends(get_current_active_user)])
-# app.include_router(texts.router, dependencies=[Depends(get_current_active_user)])
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

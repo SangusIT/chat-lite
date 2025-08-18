@@ -7,3 +7,7 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: str | None = None
+
+class TokenDB(BaseModel):
+    user_id: int
+    access_token: str

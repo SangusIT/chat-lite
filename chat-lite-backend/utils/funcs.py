@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
+from fastapi import status, HTTPException
 import os
 import jwt
 from dotenv import load_dotenv
-from ..models.users import UserPrivate
+from ..models.users import UserPrivate, UserPublic
 from ..utils.psql import get_user
 from passlib.context import CryptContext
 import markdown
@@ -18,15 +19,27 @@ SECRET_KEY: str = os.environ.get("SECRET_KEY")
 ALGORITHM: str = os.environ.get("ALGORITHM")
 ACCESS_KEY: str = os.environ.get("ACCESS_KEY")
 SECRET_ACCESS_KEY: str = os.environ.get("SECRET_ACCESS_KEY")
-ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
-    os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES"))
 
 
-def send_reg(user: User):
+def process_table_create(result, logger, response):
+    logger.info(result)
+    if result == 0:
+        result = "Table previously created." 
+        response.status_code = status.HTTP_200_OK
+    elif result == "CREATE TABLE":
+        result = "Table created."
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result.message)
+    return result
+
+
+def send_reg(user: User, logger):
+    logger.info("Sending registration email to: %s" % user.email)
     client = boto3.client(
         'ses',
         aws_access_key_id=ACCESS_KEY,
-        aws_secret_access_key=SECRET_ACCESS_KEY
+        aws_secret_access_key=SECRET_ACCESS_KEY,
+        region_name='us-east-2'
     )
     result = client.send_email(
         Source=EMAILER,
@@ -42,11 +55,11 @@ def send_reg(user: User):
             },
             'Body': {
                 'Text': {
-                    'Data': 'Congratulations, you have been invited to try out our chat app. Please follow this link to continue: http://localhost:8000/%s' % user.key,
+                    'Data': f'Congratulations, you have been invited to try out our chat app. Please follow this link to continue: {('http://localhost:3000/register?key=' + user.key)}',
                     'Charset': 'UTF-8'
                 },
                 'Html': {
-                    'Data': 'Congratulations, you have been invited to try out our chat app. Please follow this link to continue: http://localhost:8000/%s' % user.key,
+                    'Data': f'Congratulations, you have been invited to try out our chat app. Please follow this link to continue: <a href="{('http://localhost:3000/register?key=' + user.key)}">{('http://localhost:3000/register?key=' + user.key)}</a>',
                     'Charset': 'UTF-8'
                 }
             }
@@ -55,6 +68,7 @@ def send_reg(user: User):
             EMAILER,
         ],
     )
+    logger.info(result)
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
@@ -68,14 +82,14 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-async def authenticate_user(username: str, password: str, client):
-    user = await get_user(client, username)
-    user = UserPrivate(**user)
+async def authenticate_user(username: str, password: str, conn, logger):
+    user = await get_user(conn, 'username', username, logger)
+    user = UserPrivate(**user[0])
     if not user:
         return False
     if not verify_password(password, user.hashed_password):
         return False
-    return user
+    return UserPublic(user_id=user.user_id, username=username)
 
 
 def verify_password(plain_password, hashed_password):

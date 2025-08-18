@@ -2,11 +2,8 @@ from pydantic import BaseModel
 
 class Table(BaseModel):
     table_name: str
-    column_name: str | None
-    data_type: str | None
-    character_maximum_length: int | None
-    column_default: str | None
-    is_nullable: bool | None
+    is_insertable_into: str
 
 class TableDelete(BaseModel):
+    model_config = {"extra": "forbid"}
     table_name: str

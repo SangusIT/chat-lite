@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-router = APIRouter(prefix='/texts', tags=['texts'])
+router = APIRouter()
 
 @router.get('/')
-async def get_chats():
+async def get_texts():
     return [{"name":"text 1"},{"name":"text 2"},{"name":"text 3"}]

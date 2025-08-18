@@ -1,37 +1,59 @@
-from fastapi import APIRouter, Response, Depends, status, Request, HTTPException, Query
+from fastapi import APIRouter, Response, Depends, status, Request, HTTPException, Query, BackgroundTasks
 from typing import Annotated
 from ..utils.dependencies import verify_token
-from ..utils.psql import create_db, create_table_users, create_table_chats, create_table_texts, table_schema, exec, drop_table
-import json
+from ..utils.psql import create_db, create_table_users, create_table_chats, create_table_texts, table_schema, exec, drop_table, exec_many
+from ..utils.funcs import process_table_create, send_reg
 import uuid
-from dotenv import load_dotenv
-from asyncpg.exceptions import UndefinedTableError
 from ..models.tables import Table, TableDelete
-from ..models.users import User, UserAdd
-
-
-
+from ..models.users import User, UserAdd, UserDB, UserPublic
+    
 router = APIRouter()
 
-@router.post('/create_user', dependencies=[Depends(verify_token)], status_code=status.HTTP_201_CREATED)
-async def create_user(user: User, request: Request, response: Response):
+@router.get('/get_user', response_model=UserPublic)
+async def get_user(user: Annotated[UserDB, Query()], request: Request):
+    """
+    Lookup a user.
+    """
+    stmt = "SELECT * FROM users WHERE " + " OR ".join(["%s = '%s'" % (k, v) for k,v in user.items()])
+    user = await exec(request.app.state.psql_conn, request.app.state.logger, stmt)
+    return UserPublic(**user[0])
+
+@router.get('/get_users', response_model=list[UserPublic], status_code=status.HTTP_200_OK)
+async def get_users(request: Request):
+    """
+    Gets all users.
+    """
+    result = await exec(request.app.state.psql_conn, request.app.state.logger, "SELECT user_id, username, email FROM users")
+    try:
+        result = [UserPublic(**r) for r in result]
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    return result
+
+@router.post('/create_user', status_code=status.HTTP_201_CREATED)
+async def create_user(user: Annotated[User, Query()], request: Request, background_tasks: BackgroundTasks):
     """
     Create a new user and trigger sending a registration email to the user.
     """
     user = UserAdd(username=user.username, email=user.email, key=uuid.uuid4().hex)
-    stmt = f"INSERT INTO users (username, email, key) VALUES ($1, $2, $3) RETURNING username, email, key;",
-    args = [(user.username, user.email, user.key)]
-    logger = request.app.state.logger
-    logger.info(stmt)
-    logger.info(args)
-    result = await exec(request.app.state.psql_conn, request.app.state.logger, stmt, args)
-    if result:
-        {"details":"User created."}
+    result = await exec_many(request.app.state.psql_conn, request.app.state.logger, "INSERT INTO users (username, email, key) VALUES ($1, $2, $3) RETURNING username, email, key", [(user.username, user.email, user.key)])
+    if result == None:
+        result = {"details":"User created."}
+        background_tasks.add_task(send_reg, user=user, logger=request.app.state.logger)
     else:
-        {"details":"Error creating user."}
+        raise HTTPException(status_code=status.HTTP_417_EXPECTATION_FAILED, detail=("Error creating user: %s." % result))
     return result
 
-@router.get('/verify_database', dependencies=[Depends(verify_token)], status_code=status.HTTP_200_OK)
+@router.delete('/delete_user', status_code=status.HTTP_201_CREATED)
+async def delete_user(user: Annotated[UserDB, Query()], request: Request):
+    """
+    Delete a user identified by their ID, username or email.
+    """
+    stmt = "DELETE FROM users WHERE " + " OR ".join(["%s = '%s'" % (k, v) for k,v in user.items()])
+    await exec(request.app.state.psql_conn, request.app.state.logger, stmt)
+    return {"details": "User record deleted if it existed."}
+
+@router.get('/verify_database', status_code=status.HTTP_200_OK)
 async def verify_database(request: Request, response: Response):
     """
     Verifies that the chat-lite database exists or, if not, creates one.
@@ -44,65 +66,42 @@ async def verify_database(request: Request, response: Response):
         response.status_code = status.HTTP_201_CREATED
     return {"details": result}
 
-@router.get('/tables', response_model=list[Table], dependencies=[Depends(verify_token)], status_code=status.HTTP_200_OK)
-async def get_tables(request: Request, response: Response):
+@router.get('/tables', status_code=status.HTTP_200_OK)
+async def get_tables(request: Request):
     """
     Gets all table schema.
     """
     result = await table_schema(request.app.state.psql_conn, request.app.state.logger)
-    if result != []:
-        result = [Table(res) for res in result]
     return result
 
-@router.get('/create_users_table', dependencies=[Depends(verify_token)], status_code=status.HTTP_201_CREATED)
+@router.get('/create_users_table', status_code=status.HTTP_201_CREATED)
 async def create_users_table(request: Request, response: Response):
     """
     Create the users table if it does not exist.
     """
-    logger = request.app.state.logger
-    logger.info("Creating users table.")
     result = await create_table_users(request.app.state.psql_conn, request.app.state.logger)
-    logger.info(result)
-    if not result:
-        result = "Table previously created." 
-        response.status_code = status.HTTP_200_OK
-    else:
-        result = "Users table created."
+    result = process_table_create(result, request.app.state.logger, response)
     return {"details": result}
 
-@router.get('/create_chats_table', dependencies=[Depends(verify_token)], status_code=status.HTTP_201_CREATED)
+@router.get('/create_chats_table', status_code=status.HTTP_201_CREATED)
 async def create_chats_table(request: Request, response: Response):
     """
     Create the chats table if it does not exist.
     """
-    logger = request.app.state.logger
-    logger.info("Creating chats table.")
     result = await create_table_chats(request.app.state.psql_conn, request.app.state.logger)
-    logger.info(result)
-    if not result:
-        result = "Table previously created." 
-        response.status_code = status.HTTP_200_OK
-    else:
-        result = "Chats table created."
+    result = process_table_create(result, request.app.state.logger, response)
     return {"details": result}
 
-@router.get('/create_texts_table', dependencies=[Depends(verify_token)], status_code=status.HTTP_201_CREATED)
+@router.get('/create_texts_table', status_code=status.HTTP_201_CREATED)
 async def create_texts_table(request: Request, response: Response):
     """
     Create the texts table if it does not exist.
     """
-    logger = request.app.state.logger
-    logger.info("Creating texts table.")
     result = await create_table_texts(request.app.state.psql_conn, request.app.state.logger)
-    logger.info(result)
-    if not result:
-        result = "Table previously created." 
-        response.status_code = status.HTTP_200_OK
-    else:
-        result = "Texts table created."
+    result = process_table_create(result, request.app.state.logger, response)
     return {"details": result}
 
-@router.delete('/tables', dependencies=[Depends(verify_token)], status_code=status.HTTP_200_OK)
+@router.delete('/tables', status_code=status.HTTP_200_OK)
 async def delete_table(table: Annotated[TableDelete, Query()], request: Request, response: Response):
     """
     Deletes a given table.

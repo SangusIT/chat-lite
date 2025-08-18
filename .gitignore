@@ -48,3 +48,5 @@ venv/
 vram_check.png
 vram_check_2.png
 __pycache__/
+chat-lite-service-account_accessKeys.csv
+chat-lite-backend/celery_notes.txt
