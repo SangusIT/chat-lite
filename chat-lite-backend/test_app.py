@@ -5,6 +5,6 @@ from app import app
 client = TestClient(app)
 
 
-def test_hellp():
+def test_help():
     response = client.get("/")
     assert response.status_code == 404

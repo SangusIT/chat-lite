@@ -94,7 +94,6 @@ export default function Register() {
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
     signIn(values.username, values.password)
   }
 

@@ -9,6 +9,8 @@ from passlib.context import CryptContext
 import markdown
 import boto3
 from models.users import User
+import aiohttp
+import asyncio
 
 
 load_dotenv()
@@ -112,3 +114,17 @@ async def ollama_bot(logger, ollama_client, data):
     logger.info(response.choices[0].message.content)
     answer = markdown.markdown(response.choices[0].message.content)
     return answer
+
+
+async def ping_ollama(session):
+    try:
+        async with session.get('http://localhost:11434/') as response:
+            # await asyncio.sleep(1)
+            return True
+    except Exception as e:
+        return False
+    
+async def check_ollama():    
+    async with aiohttp.ClientSession() as session:
+        result = await asyncio.gather(ping_ollama(session))
+        return result[0]

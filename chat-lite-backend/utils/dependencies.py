@@ -22,6 +22,15 @@ ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
     os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES"))
 
 
+SERVER_IP = "127.0.0.1"
+
+async def verify_server_ip(request: Request):
+    if request.client.host != SERVER_IP:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied.",
+        )
+
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], request: Request):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

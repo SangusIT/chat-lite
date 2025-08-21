@@ -10,9 +10,12 @@ export type Chat = {
   name: string
 }
 
-export default function Home() {
+export default function chats() {
   const router = useRouter();
   const [chats, setChats] = useState<[]>([])
+  const sesH = getSession();
+  console.log('sesH')
+  console.log(sesH)
 
   useEffect(() => {
     console.log('loaded')
