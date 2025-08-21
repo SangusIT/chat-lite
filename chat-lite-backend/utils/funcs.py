@@ -11,7 +11,13 @@ import boto3
 from models.users import User
 import aiohttp
 import asyncio
+import logging
+import requests
+from bs4 import BeautifulSoup
+import subprocess
+import pandas as pd
 
+logger = logging.getLogger('uvicorn.error')
 
 load_dotenv()
 
@@ -84,8 +90,8 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-async def authenticate_user(username: str, password: str, conn, logger):
-    user = await get_user(conn, 'username', username, logger)
+async def authenticate_user(username: str, password: str, conn):
+    user = await get_user(conn, 'username', username)
     user = UserPrivate(**user[0])
     if not user:
         return False
@@ -117,9 +123,10 @@ async def ollama_bot(logger, ollama_client, data):
 
 
 async def ping_ollama(session):
+    # logger.info('pinging ollama')
     try:
         async with session.get('http://localhost:11434/') as response:
-            # await asyncio.sleep(1)
+            await asyncio.sleep(1)
             return True
     except Exception as e:
         return False
@@ -128,3 +135,27 @@ async def check_ollama():
     async with aiohttp.ClientSession() as session:
         result = await asyncio.gather(ping_ollama(session))
         return result[0]
+
+async def ollama_ps():
+    running = os.system("ollama ps")
+    return running
+
+async def get_pulled():
+    output = subprocess.check_output("ollama ls", shell=True, text=True)
+    output = output.split("\n")
+    output = [o.split("    ") for o in output[1:-1]]
+    cleaned = [[c.strip() for c in o] for o in output]
+    df = pd.DataFrame([o[:4] for o in cleaned], columns=["name", "id", "size", "last modified"])
+    return df.to_dict("records")
+
+async def get_list():
+    r = requests.get("https://ollama.com/library")
+    soup = BeautifulSoup(r.text)
+    available = soup.find_all("span", "group-hover:underline truncate")
+    return [a.get_text() for a in available]
+
+async def get_details(llm):
+    r = requests.get("https://ollama.com/library/%s" % llm)
+    logger.info(dir(r))
+    soup = BeautifulSoup(r.text)
+    return soup

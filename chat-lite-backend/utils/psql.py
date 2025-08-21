@@ -1,8 +1,6 @@
 import asyncpg
-import asyncio
 from dotenv import load_dotenv
 import os
-import json
 
 load_dotenv()
 
@@ -33,8 +31,8 @@ async def create_db():
             await psql_conn.close()
         return result
 
-async def create_table_users(psql_conn, logger):
-    table_check = await check_table(psql_conn, 'users', logger)
+async def create_table_users(psql_conn):
+    table_check = await check_table(psql_conn, 'users')
     create_result = None
     if type(table_check) != asyncpg.exceptions.UndefinedTableError:
         return table_check
@@ -55,8 +53,8 @@ async def create_table_users(psql_conn, logger):
     finally:
         return create_result
 
-async def create_table_chats(psql_conn, logger):
-    table_check = await check_table(psql_conn, 'chats', logger)
+async def create_table_chats(psql_conn):
+    table_check = await check_table(psql_conn, 'chats')
     create_result = None
     if type(table_check) != asyncpg.exceptions.UndefinedTableError:
         return table_check
@@ -77,8 +75,8 @@ async def create_table_chats(psql_conn, logger):
     finally:
         return create_result
 
-async def create_table_texts(psql_conn, logger):
-    table_check = await check_table(psql_conn, 'texts', logger)
+async def create_table_texts(psql_conn):
+    table_check = await check_table(psql_conn, 'texts')
     create_result = None
     if type(table_check) != asyncpg.exceptions.UndefinedTableError:
         return table_check
@@ -122,7 +120,7 @@ async def table_schema(psql_conn, logger):
     finally:
         return tables
 
-async def exec(psql_conn, logger, statment):
+async def exec(psql_conn, statment):
     result = ""
     try:
         result = await psql_conn.fetch(statment)
@@ -131,7 +129,7 @@ async def exec(psql_conn, logger, statment):
     finally:
         return result
     
-async def exec_many(psql_conn, logger, statment, args):
+async def exec_many(psql_conn, statment, args):
     result = False
     try:
         result = await psql_conn.executemany(statment, args)
@@ -141,14 +139,14 @@ async def exec_many(psql_conn, logger, statment, args):
         return result
 
 
-async def get_user(conn, search_key, search_val, logger):
+async def get_user(conn, search_key, search_val):
     stmt = "SELECT * FROM users WHERE %s = '%s'" % (search_key, search_val)
-    result = await exec(conn, logger, stmt)
+    result = await exec(conn, stmt)
     return result
 
-async def check_key(conn, key, logger):
+async def check_key(conn, key):
     stmt = "SELECT * FROM users WHERE key = '%s' LIMIT 1" % key
-    result = await exec(conn, logger, stmt)
+    result = await exec(conn, stmt)
     return result
 
 async def check_table(psql_conn, table, logger):
