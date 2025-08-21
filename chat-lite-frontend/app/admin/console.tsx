@@ -25,8 +25,9 @@ import {
 import moment from "moment";
 
 export default function Console() {
-    const [socketUrl, setSocketUrl] = useState('ws://localhost:8000/admin/ws');
+    const [socketUrl, setSocketUrl] = useState('ws://localhost:8000/admin/ws')
     const [ollamStatus, setOllamaStatus] = useState("Offline")
+    const [loginRequired, setLoginRequired] = useState("true")
 
     const { sendMessage, lastMessage, readyState, sendJsonMessage, getWebSocket } = useWebSocket(socketUrl, { 
         onOpen: () => {
@@ -40,6 +41,13 @@ export default function Console() {
     });
 
     useEffect(() => {
+        console.log('login required')
+        console.log(loginRequired)
+        const new_settings = update_settings()
+        console.log(new_settings)
+    }, [loginRequired])
+
+    useEffect(() => {
         if (lastMessage !== null) {
             const data = JSON.parse(lastMessage.data)
             const ollama_status = data.ollama_online ? "Online" : "Offline"
@@ -48,6 +56,11 @@ export default function Console() {
             setOllamaStatus("Offline")
         }
     }, [lastMessage]);
+
+    const update_settings = useCallback(() => {
+        console.log("update_settings await function from ./action to write to sqlite")
+        return "updated"
+    }, [loginRequired])
 
     const connectionStatus = {
         [ReadyState.CONNECTING]: 'Connecting',
@@ -91,14 +104,13 @@ export default function Console() {
                         <TableBody>
                             <TableRow>
                                 <TableCell className="w-[100px]">
-                                    <Select>
+                                    <Select defaultValue={loginRequired} onValueChange={(val) => setLoginRequired(val)}>
                                         <SelectTrigger className="w-[180px]">
-                                            <SelectValue placeholder="Theme" />
+                                            <SelectValue/>
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="light">Light</SelectItem>
-                                            <SelectItem value="dark">Dark</SelectItem>
-                                            <SelectItem value="system">System</SelectItem>
+                                            <SelectItem value="true">True</SelectItem>
+                                            <SelectItem value="false">False</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </TableCell>
