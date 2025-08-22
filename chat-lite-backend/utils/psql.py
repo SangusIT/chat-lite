@@ -97,6 +97,28 @@ async def create_table_texts(psql_conn):
         create_result = e
     finally:
         return create_result
+
+async def create_table_admin(psql_conn):
+    table_check = await check_table(psql_conn, 'users')
+    create_result = None
+    if type(table_check) != asyncpg.exceptions.UndefinedTableError:
+        return table_check
+    try:
+        create_result = await psql_conn.execute('''
+            CREATE TABLE admin(
+                user_id INT GENERATED ALWAYS AS IDENTITY UNIQUE,
+                username VARCHAR(255) NOT NULL UNIQUE,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                hashed_password VARCHAR(255) UNIQUE,
+                key VARCHAR(255) NOT NULL UNIQUE,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+    except asyncpg.exceptions.PostgresError as e:
+        create_result = e
+    finally:
+        return create_result
     
 async def table_schema(psql_conn, logger):
     tables = []

@@ -16,18 +16,21 @@ import requests
 from bs4 import BeautifulSoup
 import subprocess
 import pandas as pd
+from openai import AsyncOpenAI
 
 logger = logging.getLogger('uvicorn.error')
 
 load_dotenv()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 EMAILER: str = os.environ.get("EMAILER")
 SECRET_KEY: str = os.environ.get("SECRET_KEY")
+OLLAMA_URL: str = os.environ.get("OLLAMA_URL")
 ALGORITHM: str = os.environ.get("ALGORITHM")
 ACCESS_KEY: str = os.environ.get("ACCESS_KEY")
 SECRET_ACCESS_KEY: str = os.environ.get("SECRET_ACCESS_KEY")
-
+ollama_client = AsyncOpenAI(base_url=OLLAMA_URL, api_key="ollama")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def process_table_create(result, logger, response):
     logger.info(result)
@@ -108,7 +111,7 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-async def ollama_bot(logger, ollama_client, data):
+async def ollama_bot(data):
     logger.info('Asking Ollama AI: %s' % data)
     response = await ollama_client.chat.completions.create(
         model="llama3",
@@ -150,12 +153,16 @@ async def get_pulled():
 
 async def get_list():
     r = requests.get("https://ollama.com/library")
-    soup = BeautifulSoup(r.text)
+    soup = BeautifulSoup(r.text, features="html.parser")
     available = soup.find_all("span", "group-hover:underline truncate")
     return [a.get_text() for a in available]
 
 async def get_details(llm):
     r = requests.get("https://ollama.com/library/%s" % llm)
-    logger.info(dir(r))
     soup = BeautifulSoup(r.text)
     return soup
+
+async def get_all():
+    pulled = await get_pulled()
+    available = await get_list()
+    return {"pulled":pulled,"available":available}
