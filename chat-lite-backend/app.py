@@ -2,15 +2,14 @@ from fastapi import FastAPI, WebSocket, Depends, status, Request, WebSocketDisco
 from websockets.exceptions import ConnectionClosed
 from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
-from openai import AsyncOpenAI
 from pymongo import AsyncMongoClient
 import logging
 from dotenv import load_dotenv
 import os
 import asyncpg
 from routers import admin, users, chats, texts, ollama
-from utils.funcs import ollama_bot, logger
-from utils.dependencies import verify_token, get_current_active_user
+from utils.funcs import logger
+from utils.dependencies import verify_token, get_current_active_user, verify_server_ip
 from fastapi.middleware.cors import CORSMiddleware
 import webbrowser
 
@@ -20,7 +19,7 @@ MONGO_USER: str = os.environ.get("MONGO_USER")
 MONGO_PASSWORD: str = os.environ.get("MONGO_PASSWORD")
 MONGO_HOST: str = os.environ.get("MONGO_HOST")
 MONGO_PORT: int = int(os.environ.get("MONGO_PORT"))
-OLLAMA_URL: str = os.environ.get("OLLAMA_URL")
+
 PSQL_USER: str = os.environ.get("PSQL_USER")
 PSQL_PASSWORD: str = os.environ.get("PSQL_PASSWORD")
 PSQL_HOST: str = os.environ.get("PSQL_HOST")
@@ -29,12 +28,8 @@ PSQL_DB: str = os.environ.get("PSQL_DB")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    ollama_client = AsyncOpenAI(base_url=OLLAMA_URL, api_key="ollama") # need to do all the other checks for ollama from admin dashboard
     mongo_conn = AsyncMongoClient(host=MONGO_HOST, port=MONGO_PORT, username=MONGO_USER, password=MONGO_PASSWORD)
     psql_conn = await asyncpg.connect(user=PSQL_USER, password=PSQL_PASSWORD, database=PSQL_DB, host=PSQL_HOST)
-    if ollama_client:
-        logger.info('Ollama client loaded.')
-        app.state.ollama_client = ollama_client
     if mongo_conn:
         logger.info('MongoDB connected.')
         app.state.mongo_conn = mongo_conn

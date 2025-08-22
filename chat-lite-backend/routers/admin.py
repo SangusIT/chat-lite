@@ -3,7 +3,8 @@ from fastapi.responses import HTMLResponse
 from typing import Annotated
 from utils.dependencies import verify_token, verify_server_ip
 from utils.psql import create_db, create_table_users, create_table_chats, create_table_texts, table_schema, exec, drop_table, exec_many
-from utils.funcs import process_table_create, send_reg, check_ollama, logger
+from utils.funcs import process_table_create, send_reg, check_ollama, logger, ollama_bot
+from utils.mdb import settings_col
 import uuid
 from models.tables import TableDelete
 from models.users import User, UserAdd, UserDB, UserPublic
@@ -18,9 +19,16 @@ async def dashboard(request: Request):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     while True:
-        data = await websocket.receive_text()
-        ollama_status = await check_ollama()
-        await websocket.send_json({"ollama_online": ollama_status})
+        data = await websocket.receive_json()
+        if data["info"] == "input":
+            logger.info("received prompt input")
+            logger.info(data["prompt"])
+            response = await ollama_bot(data["prompt"])
+            ollama_status = await check_ollama()
+            await websocket.send_json({"ollama_online": ollama_status, "response": response})
+        else:
+            ollama_status = await check_ollama()
+            await websocket.send_json({"ollama_online": ollama_status})
 
 @router.get('/get_user', response_model=UserPublic, dependencies=[Depends(verify_token)])
 async def get_user(user: Annotated[UserDB, Query()], request: Request):
@@ -111,6 +119,14 @@ async def create_texts_table(request: Request, response: Response):
     """
     result = await create_table_texts(request.app.state.psql_conn)
     result = process_table_create(result, response)
+    return {"details": result}
+
+@router.get('/get_settings', status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_server_ip)])
+async def get_settings(request: Request, response: Response):
+    """
+    Get the settings collection
+    """
+    result = await settings_col(request.app.state.mongo_conn)
     return {"details": result}
 
 @router.delete('/tables', status_code=status.HTTP_200_OK, dependencies=[Depends(verify_token)])
