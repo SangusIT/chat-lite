@@ -6,7 +6,7 @@ class User(BaseModel):
     email: EmailStr
 
 class UserAdd(User):
-    user_id: int
+    user_id: Optional[int] = None
     key: str
 
 class UserPublic(BaseModel):

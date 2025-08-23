@@ -31,8 +31,8 @@ async def create_db():
             await psql_conn.close()
         return result
 
-async def create_table_users(psql_conn):
-    table_check = await check_table(psql_conn, 'users')
+async def create_table_users(psql_conn, logger):
+    table_check = await check_table(psql_conn, 'users', logger)
     create_result = None
     if type(table_check) != asyncpg.exceptions.UndefinedTableError:
         return table_check
@@ -53,8 +53,8 @@ async def create_table_users(psql_conn):
     finally:
         return create_result
 
-async def create_table_chats(psql_conn):
-    table_check = await check_table(psql_conn, 'chats')
+async def create_table_chats(psql_conn, logger):
+    table_check = await check_table(psql_conn, 'chats', logger)
     create_result = None
     if type(table_check) != asyncpg.exceptions.UndefinedTableError:
         return table_check
@@ -75,8 +75,8 @@ async def create_table_chats(psql_conn):
     finally:
         return create_result
 
-async def create_table_texts(psql_conn):
-    table_check = await check_table(psql_conn, 'texts')
+async def create_table_texts(psql_conn, logger):
+    table_check = await check_table(psql_conn, 'texts', logger)
     create_result = None
     if type(table_check) != asyncpg.exceptions.UndefinedTableError:
         return table_check
@@ -98,8 +98,8 @@ async def create_table_texts(psql_conn):
     finally:
         return create_result
 
-async def create_table_admin(psql_conn):
-    table_check = await check_table(psql_conn, 'users')
+async def create_table_admin(psql_conn, logger):
+    table_check = await check_table(psql_conn, 'admin', logger)
     create_result = None
     if type(table_check) != asyncpg.exceptions.UndefinedTableError:
         return table_check
@@ -130,7 +130,7 @@ async def table_schema(psql_conn, logger):
             FROM 
                 information_schema.tables
             WHERE 
-                table_name IN ('users','chats','texts')
+                table_name IN ('users','chats','texts','admin')
         '''
         result = await psql_conn.fetch(query)
         logger.info(result)

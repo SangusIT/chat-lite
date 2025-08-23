@@ -26,8 +26,13 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-
+import { unified } from 'unified'
+import remarkParse from 'remark-parse'
+import remarkRehype from 'remark-rehype'
+import rehypeSanitize from 'rehype-sanitize'
+import rehypeStringify from 'rehype-stringify'
 import moment from "moment";
+import parse from 'html-react-parser';
 
 export interface Pulled {
     id: string;
@@ -36,10 +41,11 @@ export interface Pulled {
     size: string
 }
 
-export interface Msg {
+export interface Text {
     id: string;
     role: string;
-    content: string;
+    content: any;
+    date_created: string;
 }
 
 
@@ -48,11 +54,13 @@ export default function Console(llm_info: any) {
     const [socketUrl, setSocketUrl] = useState('ws://localhost:8000/admin/ws')
     const [ollamStatus, setOllamaStatus] = useState("Offline")
     const [loginRequired, setLoginRequired] = useState("true")
-    const [msg, setMsg] = useState("")
-    const [msgList, setMsgList] = useState<Msg[]>([])
+    const [text, setText] = useState("")
+    const [chat, setChat] = useState("")
+    const [textList, setTextList] = useState<Text[]>([])
     const [llmList, setLlmList] = useState([])
     const [pulled, setPulled] = useState<Pulled[]>([])
     const [llm, setLlm] = useState("")
+    const textsRef = useRef<Element>(null)
 
     const { sendMessage, lastMessage, readyState, sendJsonMessage, getWebSocket } = useWebSocket(socketUrl, { 
         onOpen: () => {
@@ -72,17 +80,21 @@ export default function Console(llm_info: any) {
         setPulled(llmInfo["pulled"])
     }, [])
 
-    useEffect(() => {
-        console.log('login required')
-        console.log(loginRequired)
-        const new_settings = update_settings()
-        console.log(new_settings)
-    }, [loginRequired])
+    // useEffect(() => {
+    //     console.log('login required')
+    //     console.log(loginRequired)
+    //     const new_settings = update_settings()
+    //     console.log(new_settings)
+    // }, [loginRequired])
 
     useEffect(() => {
-        console.log('llm')
-        console.log(llm)
-    }, [llm])
+        console.log('textList')
+        console.log(textList)
+        if (textsRef.current) {
+            textsRef.current.scrollTop = textsRef.current.scrollHeight;
+            console.log(textsRef)
+        }
+    }, [textList])
 
     useEffect(() => {
         if (lastMessage !== null) {
@@ -90,10 +102,12 @@ export default function Console(llm_info: any) {
             const data = JSON.parse(lastMessage.data)
             console.log(data)
             const ollama_status = data?.ollama_online ? "Online" : "Offline"
-            const response = data?.response ? data.response : false
-            if (response){
+            const answer = data?.answer ? data.answer : false
+            const date_created = data?.date_created ? data.date_created : false
+            if (answer){
                 const id = uuidv4();
-                setMsgList([...msgList, {id: id, role: "system", content: response}])
+                const styled_answer = parse(answer)
+                setTextList([...textList, {id: id, role: "system", content: styled_answer, date_created: date_created}])
             }
             setOllamaStatus(ollama_status)
         } else {
@@ -107,14 +121,17 @@ export default function Console(llm_info: any) {
     }, [loginRequired])
 
     const handleLlmChange = (value: string) => {
+        console.log('handleLlmChange')
+        console.log(value)
         setLlm(value)
     }
 
     async function send_prompt() {
         console.log("send_prompt")
         const id = uuidv4();
-        setMsgList([...msgList, {id: id, role: "user", content: msg}])
-        sendJsonMessage({"info": "input", "prompt": msg})
+        setText("")
+        setTextList([...textList, {id: id, role: "user", content: text, date_created: moment().format()}])
+        sendJsonMessage({"info": "input", "prompt": text})
     }
 
     const connectionStatus = {
@@ -127,12 +144,10 @@ export default function Console(llm_info: any) {
 
 
     return (
-        <div className="font-sans grid grid-rows-[20px_1fr_20px] min-h-screen p-8 pb-20 gap-16 sm:p-20">
-            <header>
-                <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight text-balance">Admin Dashboard</h1>
-            </header>
-            <main className="flex gap-[32px] row-start-2">
+        <div className="font-sans p-8">
+            <main className="flex gap-[32px] min-h-[600px] max-h-[800px]">
                 <div className="flex-col w-1/3">
+                    <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight text-balance">Admin Dashboard</h1>
                     <div className="mb-2">
                         <p className="scroll-m-20 text-2xl tracking-tight text-balance">Status</p>
                         <Table className="w-md">
@@ -197,16 +212,18 @@ export default function Console(llm_info: any) {
 
                 <div id="chat-box" className="flex-col w-2/3">
                     <div id="chat-window" className="h-full bg-card text-card-foreground flex flex-col gap-6 p-6 rounded-xl border shadow-sm">
-                        <div id="messages" className="h-3/4 border rounded">
-                            {msgList.reverse().map(m => {
+                        <div ref={textsRef} id="texts" className="h-3/4 border rounded overflow-auto flex flex-col gap-2 p-2">
+                            {textList.reverse().map(m => {
                                 return (
-                                    <div key={m.id}>{m.content}</div>
+                                    <div key={m.id} className={"wd-full flex " + (m.role == "system" ? "" : "justify-end")}>
+                                        <div className={"max-w-3/4 p-[8px] rounded " + (m.role == "system" ? "bg-black text-white" : "bg-gray-200 text-black")}>{m.content}</div>
+                                    </div>
                                 )
                             })}
                         </div>
                         <div id="input" className="h-1/4 border rounded">
                             <div className="flex h-full relative">
-                                <Textarea onChange={(e) => setMsg(e.target.value)} className="resize-none" placeholder="Ask a question..." />
+                                <Textarea value={text} onChange={(e) => setText(e.target.value)} className="resize-none" placeholder="Ask a question..." />
                                 <div className="text-slate-400 absolute right-0 bottom-0 flex gap-2 m-1">
                                     <Paperclip></Paperclip>
                                     <Send onClick={send_prompt}></Send>

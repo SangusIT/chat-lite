@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import os
 import asyncpg
 from routers import admin, users, chats, texts, ollama
-from utils.funcs import logger
+from utils.funcs import logger, start_up
 from utils.dependencies import verify_token, get_current_active_user, verify_server_ip
 from fastapi.middleware.cors import CORSMiddleware
 import webbrowser
@@ -30,13 +30,16 @@ PSQL_DB: str = os.environ.get("PSQL_DB")
 async def lifespan(app: FastAPI):
     mongo_conn = AsyncMongoClient(host=MONGO_HOST, port=MONGO_PORT, username=MONGO_USER, password=MONGO_PASSWORD)
     psql_conn = await asyncpg.connect(user=PSQL_USER, password=PSQL_PASSWORD, database=PSQL_DB, host=PSQL_HOST)
+    result = await start_up(psql_conn)
+    logger.info(result)
     if mongo_conn:
         logger.info('MongoDB connected.')
         app.state.mongo_conn = mongo_conn
     if psql_conn:
         logger.info('PostgreSQL connected.')
         app.state.psql_conn = psql_conn
-    # webbrowser.open('http://localhost:8000/admin/dashboard', new=2)
+    # webbrowser.open('http://localhost:3000/admin/dashboard', new=2)
+    # webbrowser.open('http://localhost:8000/docs', new=2)
     yield
     await psql_conn.close()
     await mongo_conn.close()

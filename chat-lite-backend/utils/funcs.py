@@ -3,14 +3,15 @@ from fastapi import status, HTTPException
 import os
 import jwt
 from dotenv import load_dotenv
-from models.users import UserPrivate, UserPublic
-from utils.psql import get_user
+from models.users import UserPrivate, UserPublic, UserAdd
+from utils.psql import get_user, create_table_admin, exec, exec_many
 from passlib.context import CryptContext
 import markdown
 import boto3
 from models.users import User
 import aiohttp
 import asyncio
+import uuid
 import logging
 import requests
 from bs4 import BeautifulSoup
@@ -25,6 +26,7 @@ load_dotenv()
 
 EMAILER: str = os.environ.get("EMAILER")
 SECRET_KEY: str = os.environ.get("SECRET_KEY")
+X_TOKEN: str = os.environ.get("X_TOKEN")  
 OLLAMA_URL: str = os.environ.get("OLLAMA_URL")
 ALGORITHM: str = os.environ.get("ALGORITHM")
 ACCESS_KEY: str = os.environ.get("ACCESS_KEY")
@@ -32,11 +34,12 @@ SECRET_ACCESS_KEY: str = os.environ.get("SECRET_ACCESS_KEY")
 ollama_client = AsyncOpenAI(base_url=OLLAMA_URL, api_key="ollama")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def process_table_create(result, logger, response):
+def process_table_create(result, logger, response=None):
     logger.info(result)
-    if result == 0:
+    if result == 0 or result == 1:
         result = "Table previously created." 
-        response.status_code = status.HTTP_200_OK
+        if response:
+            response.status_code = status.HTTP_200_OK
     elif result == "CREATE TABLE":
         result = "Table created."
     else:
@@ -122,7 +125,8 @@ async def ollama_bot(data):
     )
     logger.info(response.choices[0].message.content)
     answer = markdown.markdown(response.choices[0].message.content)
-    return answer
+    date_created = datetime.now().isoformat()
+    return {"answer": answer, "date_created": date_created}
 
 
 async def ping_ollama(session):
@@ -166,3 +170,32 @@ async def get_all():
     pulled = await get_pulled()
     available = await get_list()
     return {"pulled":pulled,"available":available}
+
+async def start_up(psql_conn):
+    logger.info("startup")
+    result = await create_table_admin(psql_conn, logger)
+    result = process_table_create(result, logger)
+    admin_result = await exec(psql_conn, "SELECT user_id, username, email FROM admin")
+    try:
+        if len(admin_result) == 0:
+            default_result = await default_admin(psql_conn)
+            if default_result:
+                await start_up(psql_conn)
+        else:
+            admin_result = [UserPublic(**r).model_dump() for r in admin_result]
+    except Exception as e:
+        # raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        logger.error(e, exc_info=True)
+    return {"details": result, "admin_result": admin_result}
+
+async def default_admin(psql_conn):
+    logger.info("Setting up default Admin")
+    admin = UserAdd(username="admin", email="info@sangusit.com", key=uuid.uuid4().hex)
+    result = await exec_many(psql_conn, "INSERT INTO admin (username, email, key) VALUES ($1, $2, $3) RETURNING username, email, key", [(admin.username, admin.email, admin.key)])
+    if result == None:
+        result = {"details":"Admin created."}
+        # background_tasks.add_task(send_reg, user=user)
+    else:
+        # raise HTTPException(status_code=status.HTTP_417_EXPECTATION_FAILED, detail=("Error creating user: %s." % result))
+        logger.error("Error creating admin: %s." % result)
+    return result
